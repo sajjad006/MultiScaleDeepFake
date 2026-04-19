@@ -1,0 +1,1170 @@
+{
+  "audio_file": "00109/audio/audio.wav",
+  "duration_sec": 10.048,
+  "sample_rate": 16000,
+  "fps_reference": 25.0,
+  "method_A": {
+    "description": "energy onset detection",
+    "n_syllables": 36,
+    "syllables": [
+      {
+        "syl_idx": 0,
+        "method": "energy",
+        "onset_sec": 0.145,
+        "end_sec": 0.21,
+        "duration_ms": 65.0,
+        "peak_energy": 0.04998,
+        "start_frame": 4,
+        "end_frame": 5
+      },
+      {
+        "syl_idx": 1,
+        "method": "energy",
+        "onset_sec": 0.275,
+        "end_sec": 0.52,
+        "duration_ms": 245.0,
+        "peak_energy": 0.06826,
+        "start_frame": 7,
+        "end_frame": 13
+      },
+      {
+        "syl_idx": 2,
+        "method": "energy",
+        "onset_sec": 0.765,
+        "end_sec": 1.15,
+        "duration_ms": 385.0,
+        "peak_energy": 0.03843,
+        "start_frame": 19,
+        "end_frame": 29
+      },
+      {
+        "syl_idx": 3,
+        "method": "energy",
+        "onset_sec": 1.535,
+        "end_sec": 1.625,
+        "duration_ms": 90.0,
+        "peak_energy": 0.0992,
+        "start_frame": 38,
+        "end_frame": 41
+      },
+      {
+        "syl_idx": 4,
+        "method": "energy",
+        "onset_sec": 1.715,
+        "end_sec": 1.8825,
+        "duration_ms": 167.5,
+        "peak_energy": 0.03061,
+        "start_frame": 43,
+        "end_frame": 47
+      },
+      {
+        "syl_idx": 5,
+        "method": "energy",
+        "onset_sec": 2.05,
+        "end_sec": 2.16,
+        "duration_ms": 110.0,
+        "peak_energy": 0.06349,
+        "start_frame": 51,
+        "end_frame": 54
+      },
+      {
+        "syl_idx": 6,
+        "method": "energy",
+        "onset_sec": 2.27,
+        "end_sec": 2.55,
+        "duration_ms": 280.0,
+        "peak_energy": 0.05337,
+        "start_frame": 57,
+        "end_frame": 64
+      },
+      {
+        "syl_idx": 7,
+        "method": "energy",
+        "onset_sec": 2.83,
+        "end_sec": 2.9225,
+        "duration_ms": 92.5,
+        "peak_energy": 0.05833,
+        "start_frame": 71,
+        "end_frame": 73
+      },
+      {
+        "syl_idx": 8,
+        "method": "energy",
+        "onset_sec": 3.015,
+        "end_sec": 3.1025,
+        "duration_ms": 87.5,
+        "peak_energy": 0.10427,
+        "start_frame": 75,
+        "end_frame": 78
+      },
+      {
+        "syl_idx": 9,
+        "method": "energy",
+        "onset_sec": 3.19,
+        "end_sec": 3.28,
+        "duration_ms": 90.0,
+        "peak_energy": 0.01857,
+        "start_frame": 80,
+        "end_frame": 82
+      },
+      {
+        "syl_idx": 10,
+        "method": "energy",
+        "onset_sec": 3.37,
+        "end_sec": 3.515,
+        "duration_ms": 145.0,
+        "peak_energy": 0.13899,
+        "start_frame": 84,
+        "end_frame": 88
+      },
+      {
+        "syl_idx": 11,
+        "method": "energy",
+        "onset_sec": 3.66,
+        "end_sec": 3.7825,
+        "duration_ms": 122.5,
+        "peak_energy": 0.0798,
+        "start_frame": 92,
+        "end_frame": 95
+      },
+      {
+        "syl_idx": 12,
+        "method": "energy",
+        "onset_sec": 3.905,
+        "end_sec": 4.16,
+        "duration_ms": 255.0,
+        "peak_energy": 0.08575,
+        "start_frame": 98,
+        "end_frame": 104
+      },
+      {
+        "syl_idx": 13,
+        "method": "energy",
+        "onset_sec": 4.415,
+        "end_sec": 4.5075,
+        "duration_ms": 92.5,
+        "peak_energy": 0.06647,
+        "start_frame": 110,
+        "end_frame": 113
+      },
+      {
+        "syl_idx": 14,
+        "method": "energy",
+        "onset_sec": 4.6,
+        "end_sec": 4.6875,
+        "duration_ms": 87.5,
+        "peak_energy": 0.03768,
+        "start_frame": 115,
+        "end_frame": 117
+      },
+      {
+        "syl_idx": 15,
+        "method": "energy",
+        "onset_sec": 4.775,
+        "end_sec": 4.8825,
+        "duration_ms": 107.5,
+        "peak_energy": 0.06809,
+        "start_frame": 119,
+        "end_frame": 122
+      },
+      {
+        "syl_idx": 16,
+        "method": "energy",
+        "onset_sec": 4.99,
+        "end_sec": 5.0725,
+        "duration_ms": 82.5,
+        "peak_energy": 0.05624,
+        "start_frame": 125,
+        "end_frame": 127
+      },
+      {
+        "syl_idx": 17,
+        "method": "energy",
+        "onset_sec": 5.155,
+        "end_sec": 5.23,
+        "duration_ms": 75.0,
+        "peak_energy": 0.01786,
+        "start_frame": 129,
+        "end_frame": 131
+      },
+      {
+        "syl_idx": 18,
+        "method": "energy",
+        "onset_sec": 5.305,
+        "end_sec": 5.3975,
+        "duration_ms": 92.5,
+        "peak_energy": 0.01791,
+        "start_frame": 133,
+        "end_frame": 135
+      },
+      {
+        "syl_idx": 19,
+        "method": "energy",
+        "onset_sec": 5.49,
+        "end_sec": 5.6,
+        "duration_ms": 110.0,
+        "peak_energy": 0.03914,
+        "start_frame": 137,
+        "end_frame": 140
+      },
+      {
+        "syl_idx": 20,
+        "method": "energy",
+        "onset_sec": 5.71,
+        "end_sec": 5.7725,
+        "duration_ms": 62.5,
+        "peak_energy": 0.04402,
+        "start_frame": 143,
+        "end_frame": 144
+      },
+      {
+        "syl_idx": 21,
+        "method": "energy",
+        "onset_sec": 5.835,
+        "end_sec": 5.955,
+        "duration_ms": 120.0,
+        "peak_energy": 0.05405,
+        "start_frame": 146,
+        "end_frame": 149
+      },
+      {
+        "syl_idx": 22,
+        "method": "energy",
+        "onset_sec": 6.075,
+        "end_sec": 6.1825,
+        "duration_ms": 107.5,
+        "peak_energy": 0.05185,
+        "start_frame": 152,
+        "end_frame": 155
+      },
+      {
+        "syl_idx": 23,
+        "method": "energy",
+        "onset_sec": 6.29,
+        "end_sec": 6.42,
+        "duration_ms": 130.0,
+        "peak_energy": 0.04395,
+        "start_frame": 157,
+        "end_frame": 160
+      },
+      {
+        "syl_idx": 24,
+        "method": "energy",
+        "onset_sec": 6.55,
+        "end_sec": 6.895,
+        "duration_ms": 345.0,
+        "peak_energy": 0.02232,
+        "start_frame": 164,
+        "end_frame": 172
+      },
+      {
+        "syl_idx": 25,
+        "method": "energy",
+        "onset_sec": 7.24,
+        "end_sec": 7.3225,
+        "duration_ms": 82.5,
+        "peak_energy": 0.07737,
+        "start_frame": 181,
+        "end_frame": 183
+      },
+      {
+        "syl_idx": 26,
+        "method": "energy",
+        "onset_sec": 7.405,
+        "end_sec": 7.4875,
+        "duration_ms": 82.5,
+        "peak_energy": 0.0246,
+        "start_frame": 185,
+        "end_frame": 187
+      },
+      {
+        "syl_idx": 27,
+        "method": "energy",
+        "onset_sec": 7.57,
+        "end_sec": 7.7875,
+        "duration_ms": 217.5,
+        "peak_energy": 0.04362,
+        "start_frame": 189,
+        "end_frame": 195
+      },
+      {
+        "syl_idx": 28,
+        "method": "energy",
+        "onset_sec": 8.005,
+        "end_sec": 8.12,
+        "duration_ms": 115.0,
+        "peak_energy": 0.0234,
+        "start_frame": 200,
+        "end_frame": 203
+      },
+      {
+        "syl_idx": 29,
+        "method": "energy",
+        "onset_sec": 8.235,
+        "end_sec": 8.41,
+        "duration_ms": 175.0,
+        "peak_energy": 0.07589,
+        "start_frame": 206,
+        "end_frame": 210
+      },
+      {
+        "syl_idx": 30,
+        "method": "energy",
+        "onset_sec": 8.585,
+        "end_sec": 8.71,
+        "duration_ms": 125.0,
+        "peak_energy": 0.07969,
+        "start_frame": 215,
+        "end_frame": 218
+      },
+      {
+        "syl_idx": 31,
+        "method": "energy",
+        "onset_sec": 8.835,
+        "end_sec": 8.9,
+        "duration_ms": 65.0,
+        "peak_energy": 0.02879,
+        "start_frame": 221,
+        "end_frame": 222
+      },
+      {
+        "syl_idx": 32,
+        "method": "energy",
+        "onset_sec": 8.965,
+        "end_sec": 9.0875,
+        "duration_ms": 122.5,
+        "peak_energy": 0.0411,
+        "start_frame": 224,
+        "end_frame": 227
+      },
+      {
+        "syl_idx": 33,
+        "method": "energy",
+        "onset_sec": 9.21,
+        "end_sec": 9.335,
+        "duration_ms": 125.0,
+        "peak_energy": 0.04033,
+        "start_frame": 230,
+        "end_frame": 233
+      },
+      {
+        "syl_idx": 34,
+        "method": "energy",
+        "onset_sec": 9.46,
+        "end_sec": 9.69,
+        "duration_ms": 230.0,
+        "peak_energy": 0.06448,
+        "start_frame": 237,
+        "end_frame": 242
+      },
+      {
+        "syl_idx": 35,
+        "method": "energy",
+        "onset_sec": 9.92,
+        "end_sec": 10.04,
+        "duration_ms": 120.0,
+        "peak_energy": 0.09493,
+        "start_frame": 248,
+        "end_frame": 251
+      }
+    ]
+  },
+  "method_B": {
+    "description": "transcript proportional mapping",
+    "n_syllables": 46,
+    "word_alignment": [
+      {
+        "word": "see",
+        "start": 0.071,
+        "end": 0.212,
+        "start_frame": 2,
+        "end_frame": 5
+      },
+      {
+        "word": "that",
+        "start": 0.232,
+        "end": 0.372,
+        "start_frame": 6,
+        "end_frame": 9
+      },
+      {
+        "word": "in",
+        "start": 0.392,
+        "end": 0.433,
+        "start_frame": 10,
+        "end_frame": 11
+      },
+      {
+        "word": "the",
+        "start": 0.473,
+        "end": 0.553,
+        "start_frame": 12,
+        "end_frame": 14
+      },
+      {
+        "word": "fall",
+        "start": 0.593,
+        "end": 0.814,
+        "start_frame": 15,
+        "end_frame": 20
+      },
+      {
+        "word": "and",
+        "start": 1.537,
+        "end": 2.24,
+        "start_frame": 38,
+        "end_frame": 56
+      },
+      {
+        "word": "then",
+        "start": 2.26,
+        "end": 2.481,
+        "start_frame": 56,
+        "end_frame": 62
+      },
+      {
+        "word": "you've",
+        "start": 2.682,
+        "end": 2.802,
+        "start_frame": 67,
+        "end_frame": 70
+      },
+      {
+        "word": "got",
+        "start": 2.822,
+        "end": 2.903,
+        "start_frame": 71,
+        "end_frame": 73
+      },
+      {
+        "word": "a",
+        "start": 2.923,
+        "end": 2.943,
+        "start_frame": 73,
+        "end_frame": 74
+      },
+      {
+        "word": "little",
+        "start": 2.963,
+        "end": 3.144,
+        "start_frame": 74,
+        "end_frame": 79
+      },
+      {
+        "word": "surprise",
+        "start": 3.164,
+        "end": 3.505,
+        "start_frame": 79,
+        "end_frame": 88
+      },
+      {
+        "word": "for",
+        "start": 3.545,
+        "end": 3.626,
+        "start_frame": 89,
+        "end_frame": 91
+      },
+      {
+        "word": "you",
+        "start": 3.646,
+        "end": 3.726,
+        "start_frame": 91,
+        "end_frame": 93
+      },
+      {
+        "word": "at",
+        "start": 3.746,
+        "end": 3.806,
+        "start_frame": 94,
+        "end_frame": 95
+      },
+      {
+        "word": "Christmas",
+        "start": 3.847,
+        "end": 4.268,
+        "start_frame": 96,
+        "end_frame": 107
+      },
+      {
+        "word": "something",
+        "start": 4.369,
+        "end": 4.69,
+        "start_frame": 109,
+        "end_frame": 117
+      },
+      {
+        "word": "very",
+        "start": 4.75,
+        "end": 4.911,
+        "start_frame": 119,
+        "end_frame": 123
+      },
+      {
+        "word": "different",
+        "start": 4.971,
+        "end": 5.232,
+        "start_frame": 124,
+        "end_frame": 131
+      },
+      {
+        "word": "from",
+        "start": 5.252,
+        "end": 5.393,
+        "start_frame": 131,
+        "end_frame": 135
+      },
+      {
+        "word": "Pompeii",
+        "start": 5.433,
+        "end": 5.935,
+        "start_frame": 136,
+        "end_frame": 148
+      },
+      {
+        "word": "called",
+        "start": 5.995,
+        "end": 6.216,
+        "start_frame": 150,
+        "end_frame": 155
+      },
+      {
+        "word": "Annie",
+        "start": 6.337,
+        "end": 6.618,
+        "start_frame": 158,
+        "end_frame": 165
+      },
+      {
+        "word": "a",
+        "start": 7.1,
+        "end": 7.14,
+        "start_frame": 178,
+        "end_frame": 178
+      },
+      {
+        "word": "musical",
+        "start": 7.2,
+        "end": 7.662,
+        "start_frame": 180,
+        "end_frame": 192
+      },
+      {
+        "word": "and",
+        "start": 7.923,
+        "end": 8.024,
+        "start_frame": 198,
+        "end_frame": 201
+      },
+      {
+        "word": "I",
+        "start": 8.064,
+        "end": 8.104,
+        "start_frame": 202,
+        "end_frame": 203
+      },
+      {
+        "word": "play",
+        "start": 8.164,
+        "end": 8.425,
+        "start_frame": 204,
+        "end_frame": 211
+      },
+      {
+        "word": "a",
+        "start": 8.445,
+        "end": 8.506,
+        "start_frame": 211,
+        "end_frame": 213
+      },
+      {
+        "word": "character",
+        "start": 8.546,
+        "end": 8.887,
+        "start_frame": 214,
+        "end_frame": 222
+      },
+      {
+        "word": "called",
+        "start": 8.907,
+        "end": 9.088,
+        "start_frame": 223,
+        "end_frame": 227
+      },
+      {
+        "word": "Nash",
+        "start": 9.148,
+        "end": 9.409,
+        "start_frame": 229,
+        "end_frame": 235
+      },
+      {
+        "word": "very",
+        "start": 9.429,
+        "end": 9.67,
+        "start_frame": 236,
+        "end_frame": 242
+      },
+      {
+        "word": "light",
+        "start": 9.891,
+        "end": 10.052,
+        "start_frame": 247,
+        "end_frame": 251
+      }
+    ],
+    "syllables": [
+      {
+        "syl_idx": 0,
+        "method": "transcript",
+        "syllable": "see",
+        "word": "see",
+        "word_pos": "1/1",
+        "start": 0.071,
+        "end": 0.212,
+        "duration_ms": 141.0,
+        "start_frame": 2,
+        "end_frame": 5
+      },
+      {
+        "syl_idx": 1,
+        "method": "transcript",
+        "syllable": "that",
+        "word": "that",
+        "word_pos": "1/1",
+        "start": 0.232,
+        "end": 0.372,
+        "duration_ms": 140.0,
+        "start_frame": 6,
+        "end_frame": 9
+      },
+      {
+        "syl_idx": 2,
+        "method": "transcript",
+        "syllable": "in",
+        "word": "in",
+        "word_pos": "1/1",
+        "start": 0.392,
+        "end": 0.433,
+        "duration_ms": 41.0,
+        "start_frame": 10,
+        "end_frame": 11
+      },
+      {
+        "syl_idx": 3,
+        "method": "transcript",
+        "syllable": "the",
+        "word": "the",
+        "word_pos": "1/1",
+        "start": 0.473,
+        "end": 0.553,
+        "duration_ms": 80.0,
+        "start_frame": 12,
+        "end_frame": 14
+      },
+      {
+        "syl_idx": 4,
+        "method": "transcript",
+        "syllable": "fall",
+        "word": "fall",
+        "word_pos": "1/1",
+        "start": 0.593,
+        "end": 0.814,
+        "duration_ms": 221.0,
+        "start_frame": 15,
+        "end_frame": 20
+      },
+      {
+        "syl_idx": 5,
+        "method": "transcript",
+        "syllable": "and",
+        "word": "and",
+        "word_pos": "1/1",
+        "start": 1.537,
+        "end": 2.24,
+        "duration_ms": 703.0,
+        "start_frame": 38,
+        "end_frame": 56
+      },
+      {
+        "syl_idx": 6,
+        "method": "transcript",
+        "syllable": "then",
+        "word": "then",
+        "word_pos": "1/1",
+        "start": 2.26,
+        "end": 2.481,
+        "duration_ms": 221.0,
+        "start_frame": 56,
+        "end_frame": 62
+      },
+      {
+        "syl_idx": 7,
+        "method": "transcript",
+        "syllable": "you've",
+        "word": "you've",
+        "word_pos": "1/1",
+        "start": 2.682,
+        "end": 2.802,
+        "duration_ms": 120.0,
+        "start_frame": 67,
+        "end_frame": 70
+      },
+      {
+        "syl_idx": 8,
+        "method": "transcript",
+        "syllable": "got",
+        "word": "got",
+        "word_pos": "1/1",
+        "start": 2.822,
+        "end": 2.903,
+        "duration_ms": 81.0,
+        "start_frame": 71,
+        "end_frame": 73
+      },
+      {
+        "syl_idx": 9,
+        "method": "transcript",
+        "syllable": "a",
+        "word": "a",
+        "word_pos": "1/1",
+        "start": 2.923,
+        "end": 2.943,
+        "duration_ms": 20.0,
+        "start_frame": 73,
+        "end_frame": 74
+      },
+      {
+        "syl_idx": 10,
+        "method": "transcript",
+        "syllable": "lit",
+        "word": "little",
+        "word_pos": "1/2",
+        "start": 2.963,
+        "end": 3.0535,
+        "duration_ms": 90.5,
+        "start_frame": 74,
+        "end_frame": 76
+      },
+      {
+        "syl_idx": 11,
+        "method": "transcript",
+        "syllable": "tle",
+        "word": "little",
+        "word_pos": "2/2",
+        "start": 3.0535,
+        "end": 3.144,
+        "duration_ms": 90.5,
+        "start_frame": 76,
+        "end_frame": 79
+      },
+      {
+        "syl_idx": 12,
+        "method": "transcript",
+        "syllable": "sur",
+        "word": "surprise",
+        "word_pos": "1/2",
+        "start": 3.164,
+        "end": 3.2919,
+        "duration_ms": 127.9,
+        "start_frame": 79,
+        "end_frame": 82
+      },
+      {
+        "syl_idx": 13,
+        "method": "transcript",
+        "syllable": "prise",
+        "word": "surprise",
+        "word_pos": "2/2",
+        "start": 3.2919,
+        "end": 3.505,
+        "duration_ms": 213.1,
+        "start_frame": 82,
+        "end_frame": 88
+      },
+      {
+        "syl_idx": 14,
+        "method": "transcript",
+        "syllable": "for",
+        "word": "for",
+        "word_pos": "1/1",
+        "start": 3.545,
+        "end": 3.626,
+        "duration_ms": 81.0,
+        "start_frame": 89,
+        "end_frame": 91
+      },
+      {
+        "syl_idx": 15,
+        "method": "transcript",
+        "syllable": "you",
+        "word": "you",
+        "word_pos": "1/1",
+        "start": 3.646,
+        "end": 3.726,
+        "duration_ms": 80.0,
+        "start_frame": 91,
+        "end_frame": 93
+      },
+      {
+        "syl_idx": 16,
+        "method": "transcript",
+        "syllable": "at",
+        "word": "at",
+        "word_pos": "1/1",
+        "start": 3.746,
+        "end": 3.806,
+        "duration_ms": 60.0,
+        "start_frame": 94,
+        "end_frame": 95
+      },
+      {
+        "syl_idx": 17,
+        "method": "transcript",
+        "syllable": "christ",
+        "word": "Christmas",
+        "word_pos": "1/2",
+        "start": 3.847,
+        "end": 4.1277,
+        "duration_ms": 280.7,
+        "start_frame": 96,
+        "end_frame": 103
+      },
+      {
+        "syl_idx": 18,
+        "method": "transcript",
+        "syllable": "mas",
+        "word": "Christmas",
+        "word_pos": "2/2",
+        "start": 4.1277,
+        "end": 4.268,
+        "duration_ms": 140.3,
+        "start_frame": 103,
+        "end_frame": 107
+      },
+      {
+        "syl_idx": 19,
+        "method": "transcript",
+        "syllable": "some",
+        "word": "something",
+        "word_pos": "1/2",
+        "start": 4.369,
+        "end": 4.5117,
+        "duration_ms": 142.7,
+        "start_frame": 109,
+        "end_frame": 113
+      },
+      {
+        "syl_idx": 20,
+        "method": "transcript",
+        "syllable": "thing",
+        "word": "something",
+        "word_pos": "2/2",
+        "start": 4.5117,
+        "end": 4.69,
+        "duration_ms": 178.3,
+        "start_frame": 113,
+        "end_frame": 117
+      },
+      {
+        "syl_idx": 21,
+        "method": "transcript",
+        "syllable": "very",
+        "word": "very",
+        "word_pos": "1/1",
+        "start": 4.75,
+        "end": 4.911,
+        "duration_ms": 161.0,
+        "start_frame": 119,
+        "end_frame": 123
+      },
+      {
+        "syl_idx": 22,
+        "method": "transcript",
+        "syllable": "dif",
+        "word": "different",
+        "word_pos": "1/3",
+        "start": 4.971,
+        "end": 5.058,
+        "duration_ms": 87.0,
+        "start_frame": 124,
+        "end_frame": 126
+      },
+      {
+        "syl_idx": 23,
+        "method": "transcript",
+        "syllable": "fer",
+        "word": "different",
+        "word_pos": "2/3",
+        "start": 5.058,
+        "end": 5.145,
+        "duration_ms": 87.0,
+        "start_frame": 126,
+        "end_frame": 129
+      },
+      {
+        "syl_idx": 24,
+        "method": "transcript",
+        "syllable": "ent",
+        "word": "different",
+        "word_pos": "3/3",
+        "start": 5.145,
+        "end": 5.232,
+        "duration_ms": 87.0,
+        "start_frame": 129,
+        "end_frame": 131
+      },
+      {
+        "syl_idx": 25,
+        "method": "transcript",
+        "syllable": "from",
+        "word": "from",
+        "word_pos": "1/1",
+        "start": 5.252,
+        "end": 5.393,
+        "duration_ms": 141.0,
+        "start_frame": 131,
+        "end_frame": 135
+      },
+      {
+        "syl_idx": 26,
+        "method": "transcript",
+        "syllable": "pom",
+        "word": "Pompeii",
+        "word_pos": "1/2",
+        "start": 5.433,
+        "end": 5.6481,
+        "duration_ms": 215.1,
+        "start_frame": 136,
+        "end_frame": 141
+      },
+      {
+        "syl_idx": 27,
+        "method": "transcript",
+        "syllable": "peii",
+        "word": "Pompeii",
+        "word_pos": "2/2",
+        "start": 5.6481,
+        "end": 5.935,
+        "duration_ms": 286.9,
+        "start_frame": 141,
+        "end_frame": 148
+      },
+      {
+        "syl_idx": 28,
+        "method": "transcript",
+        "syllable": "called",
+        "word": "called",
+        "word_pos": "1/1",
+        "start": 5.995,
+        "end": 6.216,
+        "duration_ms": 221.0,
+        "start_frame": 150,
+        "end_frame": 155
+      },
+      {
+        "syl_idx": 29,
+        "method": "transcript",
+        "syllable": "an",
+        "word": "Annie",
+        "word_pos": "1/2",
+        "start": 6.337,
+        "end": 6.4494,
+        "duration_ms": 112.4,
+        "start_frame": 158,
+        "end_frame": 161
+      },
+      {
+        "syl_idx": 30,
+        "method": "transcript",
+        "syllable": "nie",
+        "word": "Annie",
+        "word_pos": "2/2",
+        "start": 6.4494,
+        "end": 6.618,
+        "duration_ms": 168.6,
+        "start_frame": 161,
+        "end_frame": 165
+      },
+      {
+        "syl_idx": 31,
+        "method": "transcript",
+        "syllable": "a",
+        "word": "a",
+        "word_pos": "1/1",
+        "start": 7.1,
+        "end": 7.14,
+        "duration_ms": 40.0,
+        "start_frame": 178,
+        "end_frame": 178
+      },
+      {
+        "syl_idx": 32,
+        "method": "transcript",
+        "syllable": "mu",
+        "word": "musical",
+        "word_pos": "1/3",
+        "start": 7.2,
+        "end": 7.332,
+        "duration_ms": 132.0,
+        "start_frame": 180,
+        "end_frame": 183
+      },
+      {
+        "syl_idx": 33,
+        "method": "transcript",
+        "syllable": "si",
+        "word": "musical",
+        "word_pos": "2/3",
+        "start": 7.332,
+        "end": 7.464,
+        "duration_ms": 132.0,
+        "start_frame": 183,
+        "end_frame": 187
+      },
+      {
+        "syl_idx": 34,
+        "method": "transcript",
+        "syllable": "cal",
+        "word": "musical",
+        "word_pos": "3/3",
+        "start": 7.464,
+        "end": 7.662,
+        "duration_ms": 198.0,
+        "start_frame": 187,
+        "end_frame": 192
+      },
+      {
+        "syl_idx": 35,
+        "method": "transcript",
+        "syllable": "and",
+        "word": "and",
+        "word_pos": "1/1",
+        "start": 7.923,
+        "end": 8.024,
+        "duration_ms": 101.0,
+        "start_frame": 198,
+        "end_frame": 201
+      },
+      {
+        "syl_idx": 36,
+        "method": "transcript",
+        "syllable": "i",
+        "word": "I",
+        "word_pos": "1/1",
+        "start": 8.064,
+        "end": 8.104,
+        "duration_ms": 40.0,
+        "start_frame": 202,
+        "end_frame": 203
+      },
+      {
+        "syl_idx": 37,
+        "method": "transcript",
+        "syllable": "play",
+        "word": "play",
+        "word_pos": "1/1",
+        "start": 8.164,
+        "end": 8.425,
+        "duration_ms": 261.0,
+        "start_frame": 204,
+        "end_frame": 211
+      },
+      {
+        "syl_idx": 38,
+        "method": "transcript",
+        "syllable": "a",
+        "word": "a",
+        "word_pos": "1/1",
+        "start": 8.445,
+        "end": 8.506,
+        "duration_ms": 61.0,
+        "start_frame": 211,
+        "end_frame": 213
+      },
+      {
+        "syl_idx": 39,
+        "method": "transcript",
+        "syllable": "char",
+        "word": "character",
+        "word_pos": "1/3",
+        "start": 8.546,
+        "end": 8.6976,
+        "duration_ms": 151.6,
+        "start_frame": 214,
+        "end_frame": 217
+      },
+      {
+        "syl_idx": 40,
+        "method": "transcript",
+        "syllable": "ac",
+        "word": "character",
+        "word_pos": "2/3",
+        "start": 8.6976,
+        "end": 8.7733,
+        "duration_ms": 75.8,
+        "start_frame": 217,
+        "end_frame": 219
+      },
+      {
+        "syl_idx": 41,
+        "method": "transcript",
+        "syllable": "ter",
+        "word": "character",
+        "word_pos": "3/3",
+        "start": 8.7733,
+        "end": 8.887,
+        "duration_ms": 113.7,
+        "start_frame": 219,
+        "end_frame": 222
+      },
+      {
+        "syl_idx": 42,
+        "method": "transcript",
+        "syllable": "called",
+        "word": "called",
+        "word_pos": "1/1",
+        "start": 8.907,
+        "end": 9.088,
+        "duration_ms": 181.0,
+        "start_frame": 223,
+        "end_frame": 227
+      },
+      {
+        "syl_idx": 43,
+        "method": "transcript",
+        "syllable": "nash",
+        "word": "Nash",
+        "word_pos": "1/1",
+        "start": 9.148,
+        "end": 9.409,
+        "duration_ms": 261.0,
+        "start_frame": 229,
+        "end_frame": 235
+      },
+      {
+        "syl_idx": 44,
+        "method": "transcript",
+        "syllable": "very",
+        "word": "very",
+        "word_pos": "1/1",
+        "start": 9.429,
+        "end": 9.67,
+        "duration_ms": 241.0,
+        "start_frame": 236,
+        "end_frame": 242
+      },
+      {
+        "syl_idx": 45,
+        "method": "transcript",
+        "syllable": "light",
+        "word": "light",
+        "word_pos": "1/1",
+        "start": 9.891,
+        "end": 10.052,
+        "duration_ms": 161.0,
+        "start_frame": 247,
+        "end_frame": 251
+      }
+    ]
+  }
+}

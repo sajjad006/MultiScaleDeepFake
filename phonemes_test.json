@@ -1,0 +1,107 @@
+{
+  "wav": "/home/compute4/sajjad/AfricanMen/RealVideo-RealAudio/African/men/id00076/00109/audio/audio.wav",
+  "duration_s": 10.048,
+  "fps": 25.0,
+  "n_phonemes": 11,
+  "phonemes": [
+    {
+      "ph_idx": 0,
+      "phoneme": "n",
+      "start": 0.42,
+      "end": 0.46,
+      "duration_ms": 40.0,
+      "start_frame": 10,
+      "end_frame": 12
+    },
+    {
+      "ph_idx": 1,
+      "phoneme": "n",
+      "start": 2.42,
+      "end": 2.46,
+      "duration_ms": 40.0,
+      "start_frame": 60,
+      "end_frame": 62
+    },
+    {
+      "ph_idx": 2,
+      "phoneme": "\u0279",
+      "start": 3.3,
+      "end": 3.34,
+      "duration_ms": 40.0,
+      "start_frame": 82,
+      "end_frame": 84
+    },
+    {
+      "ph_idx": 3,
+      "phoneme": "k",
+      "start": 3.78,
+      "end": 3.82,
+      "duration_ms": 40.0,
+      "start_frame": 94,
+      "end_frame": 96
+    },
+    {
+      "ph_idx": 4,
+      "phoneme": "m",
+      "start": 4.46,
+      "end": 4.5,
+      "duration_ms": 40.0,
+      "start_frame": 112,
+      "end_frame": 112
+    },
+    {
+      "ph_idx": 5,
+      "phoneme": "\u0279",
+      "start": 4.8,
+      "end": 4.84,
+      "duration_ms": 40.0,
+      "start_frame": 120,
+      "end_frame": 121
+    },
+    {
+      "ph_idx": 6,
+      "phoneme": "f",
+      "start": 5.06,
+      "end": 5.1,
+      "duration_ms": 40.0,
+      "start_frame": 127,
+      "end_frame": 128
+    },
+    {
+      "ph_idx": 7,
+      "phoneme": "\u0279",
+      "start": 5.1,
+      "end": 5.14,
+      "duration_ms": 40.0,
+      "start_frame": 128,
+      "end_frame": 128
+    },
+    {
+      "ph_idx": 8,
+      "phoneme": "t",
+      "start": 5.18,
+      "end": 5.22,
+      "duration_ms": 40.0,
+      "start_frame": 130,
+      "end_frame": 130
+    },
+    {
+      "ph_idx": 9,
+      "phoneme": "f",
+      "start": 5.22,
+      "end": 5.26,
+      "duration_ms": 40.0,
+      "start_frame": 130,
+      "end_frame": 132
+    },
+    {
+      "ph_idx": 10,
+      "phoneme": "\u0279",
+      "start": 9.5,
+      "end": 9.54,
+      "duration_ms": 40.0,
+      "start_frame": 238,
+      "end_frame": 239
+    }
+  ]
+}
