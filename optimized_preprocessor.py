@@ -147,21 +147,26 @@ def _get_whisperx(device: str) -> dict:
 def _get_wav2vec2(device: str) -> dict:
     """
     FIX 2: Bypass Wav2Vec2Processor (broken in transformers >=4.40).
-    Use FeatureExtractor + PhonemeCTCTokenizer directly.
+    Load FeatureExtractor and tokenizer vocab manually from the Hub cache
+    to avoid auto-class resolution returning a bool.
     """
     if "w2v" not in _GPU:
         from transformers import Wav2Vec2ForCTC, Wav2Vec2FeatureExtractor
-        try:
-            from transformers import Wav2Vec2PhonemeCTCTokenizer as Tokenizer
-        except ImportError:
-            from transformers import Wav2Vec2CTCTokenizer as Tokenizer
+        from transformers import Wav2Vec2PhonemeCTCTokenizer
 
         model_id    = "facebook/wav2vec2-lv-60-espeak-cv-ft"
         feature_ext = Wav2Vec2FeatureExtractor.from_pretrained(model_id)
-        tokenizer   = Tokenizer.from_pretrained(model_id)
+
+        # Force PhonemeCTCTokenizer directly — do NOT use from_pretrained
+        # auto-resolution which maps to bool in transformers >=4.40
+        tokenizer = Wav2Vec2PhonemeCTCTokenizer.from_pretrained(
+            model_id,
+            do_phonemize=False,      # skip phonemizer dependency
+            phonemizer_lang=None,
+        )
 
         class _Processor:
-            """Drop-in for Wav2Vec2Processor with the same call signature."""
+            """Drop-in for Wav2Vec2Processor."""
             def __init__(self, fe, tok):
                 self.feature_extractor = fe
                 self.tokenizer = tok
@@ -180,12 +185,18 @@ def _get_wav2vec2(device: str) -> dict:
             except Exception:
                 pass
 
-        vocab_size = len(tokenizer)
+        # Build vocab from tokenizer's internal vocab dict — avoids len() on bool
+        vocab_dict = tokenizer.get_vocab()
+        vocab_size = len(vocab_dict)
+        # convert_ids_to_tokens works correctly on PhonemeCTCTokenizer
+        vocab    = [tokenizer.convert_ids_to_tokens(i) for i in range(vocab_size)]
+        blank_id = tokenizer.pad_token_id
+
         _GPU["w2v"] = {
             "model":     model,
             "processor": processor,
-            "vocab":     tokenizer.convert_ids_to_tokens(range(vocab_size)),
-            "blank_id":  tokenizer.pad_token_id,
+            "vocab":     vocab,
+            "blank_id":  blank_id,
         }
     return _GPU["w2v"]
 
