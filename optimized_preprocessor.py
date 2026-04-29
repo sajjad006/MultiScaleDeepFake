@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 FakeAVCeleb — Hardware-Maxed Parallel Preprocessor
 ====================================================
@@ -29,8 +31,6 @@ os.environ.setdefault("MKL_NUM_THREADS",        "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS",    "1")
 os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
 # ─────────────────────────────────────────────────────────────────────────────
-
-from __future__ import annotations
 
 import sys
 import json
