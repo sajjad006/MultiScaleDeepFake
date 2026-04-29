@@ -175,9 +175,25 @@ def _get_whisperx(device: str) -> dict:
 
 def _get_wav2vec2(device: str) -> dict:
     if "w2v" not in _GPU:
-        from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+        from transformers import Wav2Vec2ForCTC, Wav2Vec2FeatureExtractor, Wav2Vec2CTCTokenizer
         model_id  = "facebook/wav2vec2-lv-60-espeak-cv-ft"
-        processor = Wav2Vec2Processor.from_pretrained(model_id)
+
+        # Workaround for transformers >=4.40 Wav2Vec2Processor bug:
+        # instantiate components separately and build a minimal processor-like object
+        feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(model_id)
+        tokenizer         = Wav2Vec2CTCTokenizer.from_pretrained(model_id)
+
+        class _Processor:
+            """Minimal stand-in for Wav2Vec2Processor."""
+            def __init__(self, fe, tok):
+                self.feature_extractor = fe
+                self.tokenizer = tok
+            def __call__(self, audio, sampling_rate, return_tensors, padding):
+                return self.feature_extractor(
+                    audio, sampling_rate=sampling_rate,
+                    return_tensors=return_tensors, padding=padding)
+
+        processor = _Processor(feature_extractor, tokenizer)
         model     = Wav2Vec2ForCTC.from_pretrained(model_id).to(device)
         model.eval()
         if hasattr(torch, "compile") and device.startswith("cuda"):
