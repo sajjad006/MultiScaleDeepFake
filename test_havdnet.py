@@ -1,63 +1,77 @@
 #!/usr/bin/env python3
 """
-visualize_havdnet.py — Paper visualizations for HAVDNet-W.
+test_havdnet.py — Evaluation script for HAVDNet-W checkpoints.
 
-Generates:
-  1. t-SNE plots:
-     a) 4-class classification (RVRA, RVFA, FVRA, FVFA)
-     b) Forgery type (Face Swap, Voice Clone, etc. from Table 1 mapping)
+Modes:
+  1. Standard test     — evaluate a checkpoint on a specified demographic
+  2. Cross-demographic — train on one group, test on another
+  3. Ablation (Table 2)— disable model components at eval to measure contribution
+  4. Threshold sweep (Table 3) — sweep τ1,τ2,τ3 for forgery type identification
 
-  2. Activation maps — visual branch, 3 scales, for 1 real + 1 fake sample
-
-  3. Spectrogram plots — audio branch, 3 scales, for 1 real + 1 fake sample
-
-Usage:
-  python visualize_havdnet.py \\
-      --checkpoint checkpoints/best.pt \\
+Usage examples:
+  # Test checkpoint on same demographic it was trained on
+  python test_havdnet.py \\
+      --checkpoint african_men/best.pt \\
       --data_root /workspace/processed_multiscale \\
-      --save_dir paper_figures \\
       --ethnicity African --gender men
 
-  # Run only specific plots
-  python visualize_havdnet.py \\
-      --checkpoint checkpoints/best.pt \\
+  # Cross-demographic: test African men model on East Asian women
+  python test_havdnet.py \\
+      --checkpoint african_men/best.pt \\
       --data_root /workspace/processed_multiscale \\
-      --save_dir paper_figures \\
-      --tsne_only
+      --ethnicity "Asian (East)" --gender women
 
-  python visualize_havdnet.py \\
+  # Full dataset test (no ethnicity/gender filter)
+  python test_havdnet.py \\
+      --checkpoint checkpoints/best.pt \\
+      --data_root /workspace/processed_multiscale
+
+  # Ablation study (Table 2) — runs all 5 ablation variants + full model
+  python test_havdnet.py \\
       --checkpoint checkpoints/best.pt \\
       --data_root /workspace/processed_multiscale \\
-      --save_dir paper_figures \\
-      --activation_only
+      --ablation
+
+  # Threshold sweep (Table 3) — forgery type identification
+  python test_havdnet.py \\
+      --checkpoint checkpoints/best.pt \\
+      --data_root /workspace/processed_multiscale \\
+      --threshold_sweep
+
+  # Save results to file
+  python test_havdnet.py \\
+      --checkpoint checkpoints/best.pt \\
+      --data_root /workspace/processed_multiscale \\
+      --save_dir results/african_men
 """
 
-import os, argparse, random
+import os, json, argparse, itertools
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from sklearn.manifold import TSNE
+from sklearn.metrics import (accuracy_score, f1_score, precision_score,
+                             recall_score, classification_report,
+                             confusion_matrix)
 from tqdm import tqdm
 
+# ── reuse dataset + model from training script ────────────────────────────────
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
 from train_havdnet_w import (
-    FakeAVCelebDataset, collate_fn,
+    FakeAVCelebDataset, collate_fn, grouped_split,
     precache_wav, precache_lip, precache_clip_all,
-    set_seed, CLASS_NAMES,
+    set_seed, CLASS_NAMES, MAX_SYLLABLES, MAX_WORDS,
 )
 
-# Forgery type mapping from paper Table 1
+# ── Forgery type mapping from paper Table 1 ──────────────────────────────────
+# (s1=phrase, s2=word, s3=syllable) → forgery type
+# L = si < τi,  H = si >= τi
 FORGERY_MAP = {
     (0, 0, 0): "Fully Synthetic",
     (0, 0, 1): "Lip Sync",
@@ -69,382 +83,300 @@ FORGERY_MAP = {
     (1, 1, 1): "No Forgery",
 }
 
-# Colours for 4-class plot
-CLASS_COLORS = ["#2ecc71", "#e74c3c", "#3498db", "#9b59b6"]
 
-# Colours for forgery type plot
-FORGERY_COLORS = {
-    "Fully Synthetic":   "#c0392b",
-    "Lip Sync":          "#e67e22",
-    "Face Swap":         "#f1c40f",
-    "Face Reenactment":  "#2ecc71",
-    "Background Change": "#1abc9c",
-    "Lip Reenactment":   "#3498db",
-    "Identity Swap":     "#9b59b6",
-    "No Forgery":        "#2c3e50",
-}
+# ═══════════════════════════════════════════════════════════════
+# ABLATION WRAPPERS
+# Wrap the model to disable specific components at eval time.
+# Each wrapper zeroes out or bypasses one component, measuring
+# how much that component contributes to final performance.
+# ═══════════════════════════════════════════════════════════════
 
-SCALE_NAMES = ["Syllable", "Word", "Sentence"]
+class AblationWrapper(nn.Module):
+    """Wraps HAVDNetW and selectively disables components."""
+    def __init__(self, model, mode="full"):
+        super().__init__()
+        self.model = model
+        self.mode  = mode
+        assert mode in [
+            "full",
+            "visual_only",   # no audio encoder — audio features zeroed
+            "audio_only",    # no visual encoder — visual features zeroed
+            "phrase_only",   # only sentence/phrase scale
+            "word_only",     # only word scale
+            "syllable_only", # only syllable scale
+        ], f"Unknown ablation mode: {mode}"
+
+    def forward(self, batch):
+        if self.mode == "full":
+            return self.model(batch)
+
+        # Modify batch in-place for ablation
+        b = {k: v for k, v in batch.items()}
+
+        if self.mode == "visual_only":
+            # Zero out audio — waveform becomes silence
+            b['waveform'] = torch.zeros_like(batch['waveform'])
+
+        elif self.mode == "audio_only":
+            # Zero out all visual inputs
+            b['syllable_lip_crops'] = torch.zeros_like(batch['syllable_lip_crops'])
+            b['word_face_crops']    = torch.zeros_like(batch['word_face_crops'])
+            b['sentence_arcface']   = torch.zeros_like(batch['sentence_arcface'])
+
+        elif self.mode in ("phrase_only", "word_only", "syllable_only"):
+            # Keep all inputs but zero out sync scores for non-selected scales
+            # by zeroing the features at other scales
+            if self.mode == "phrase_only":
+                # Zero syllable and word visual/audio
+                b['syllable_lip_crops'] = torch.zeros_like(batch['syllable_lip_crops'])
+                b['word_face_crops']    = torch.zeros_like(batch['word_face_crops'])
+            elif self.mode == "word_only":
+                b['syllable_lip_crops'] = torch.zeros_like(batch['syllable_lip_crops'])
+                b['sentence_arcface']   = torch.zeros_like(batch['sentence_arcface'])
+                b['waveform']           = torch.zeros_like(batch['waveform'])
+            elif self.mode == "syllable_only":
+                b['word_face_crops']  = torch.zeros_like(batch['word_face_crops'])
+                b['sentence_arcface'] = torch.zeros_like(batch['sentence_arcface'])
+
+        return self.model(b)
 
 
 # ═══════════════════════════════════════════════════════════════
-# FEATURE EXTRACTION
+# CORE EVALUATION FUNCTION
 # ═══════════════════════════════════════════════════════════════
 
 @torch.no_grad()
-def extract_features(model, loader, device, tau=(0.5, 0.5, 0.5)):
+def evaluate_model(model, loader, device, desc="Test"):
     """
-    Extract fused features, sync scores, labels, and forgery types
-    from the full dataset for t-SNE.
+    Run model on loader, collect predictions, sync scores, and features.
+    Returns dict with metrics + raw outputs for downstream analysis.
     """
     model.eval()
-    features_all  = []
-    labels_all    = []
-    ss_all        = []
-    video_ids_all = []
+    preds, labels_all = [], []
+    sync_scores_all   = []   # (N, 3) for threshold sweep
+    alphas_all        = []   # (N, 3) for interpretability
+    gt_weights_all    = []   # (N, 3) game-theoretic fusion weights
+    video_ids_all     = []
 
-    for bd, labels, vids in tqdm(loader, desc="  Extracting features"):
+    for bd, labels, vids in tqdm(loader, desc=f"  {desc}", leave=False):
         for k, v in bd.items():
             if isinstance(v, torch.Tensor): bd[k] = v.to(device)
+        labels_dev = labels.to(device)
 
         out = model(bd)
 
-        # Use the concatenated classifier input as the feature:
-        # [fused(256), ss(3), alphas(3)] = 262-d
-        ss     = out['sync_scores']
-        alphas = out['alphas']
-        # Get fused feature — forward again to get it, or approximate
-        # with the logit pre-activation input. We use ss + alphas as
-        # a compact 6-d representation for t-SNE (fast, meaningful).
-        # For richer t-SNE: use the 256-d fused feature by hooking gt_fusion.
-        feat = torch.cat([ss, alphas], dim=-1).cpu()   # (B, 6)
-
-        features_all.append(feat)
+        preds.extend(out['logits'].argmax(-1).cpu().tolist())
         labels_all.extend(labels.tolist())
-        ss_all.append(ss.cpu())
+        sync_scores_all.append(out['sync_scores'].cpu())
+        alphas_all.append(out['alphas'].cpu())
+        if 'game_info' in out and 'final_weights' in out['game_info']:
+            gt_weights_all.append(out['game_info']['final_weights'].cpu())
         video_ids_all.extend(vids)
 
-    features = torch.cat(features_all).numpy()   # (N, 6)
-    ss_tensor = torch.cat(ss_all)                # (N, 3)
+    ss_tensor = torch.cat(sync_scores_all)   # (N, 3)
+    al_tensor = torch.cat(alphas_all)        # (N, 3)
+    gw_tensor = torch.cat(gt_weights_all) if gt_weights_all else None
 
-    # Compute forgery types via Table 1 threshold
-    tau1, tau2, tau3 = tau
-    s1 = (ss_tensor[:, 0] >= tau1).int().tolist()
-    s2 = (ss_tensor[:, 1] >= tau2).int().tolist()
-    s3 = (ss_tensor[:, 2] >= tau3).int().tolist()
-    forgery_types = [
-        FORGERY_MAP[(s1[i], s2[i], s3[i])] for i in range(len(s1))]
+    acc  = accuracy_score(labels_all, preds)
+    f1m  = f1_score(labels_all, preds, average="macro",    zero_division=0)
+    f1w  = f1_score(labels_all, preds, average="weighted", zero_division=0)
+    prec = precision_score(labels_all, preds, average="macro", zero_division=0)
+    rec  = recall_score(labels_all, preds, average="macro",    zero_division=0)
+    cm   = confusion_matrix(labels_all, preds)
 
-    return features, labels_all, forgery_types, ss_tensor
-
-
-# ═══════════════════════════════════════════════════════════════
-# t-SNE PLOTS
-# ═══════════════════════════════════════════════════════════════
-
-def plot_tsne_4class(features, labels, save_path):
-    """t-SNE coloured by 4-class label."""
-    print("  Running t-SNE (4-class)...")
-    tsne = TSNE(n_components=2, perplexity=30, n_iter=1000,
-                random_state=42, n_jobs=-1)
-    emb = tsne.fit_transform(features)
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    for c, (name, color) in enumerate(zip(CLASS_NAMES, CLASS_COLORS)):
-        mask = np.array(labels) == c
-        ax.scatter(emb[mask, 0], emb[mask, 1],
-                   c=color, label=name, alpha=0.7,
-                   s=18, linewidths=0)
-    ax.set_title("t-SNE: 4-Class Classification", fontsize=13, fontweight='bold')
-    ax.legend(fontsize=8, loc='best', framealpha=0.8)
-    ax.set_xlabel("t-SNE 1"); ax.set_ylabel("t-SNE 2")
-    ax.set_xticks([]); ax.set_yticks([])
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=200, bbox_inches='tight')
-    plt.close()
-    print(f"  Saved → {save_path}")
-
-
-def plot_tsne_forgery(features, forgery_types, save_path):
-    """t-SNE coloured by forgery type (Table 1)."""
-    print("  Running t-SNE (forgery type)...")
-    tsne = TSNE(n_components=2, perplexity=30, n_iter=1000,
-                random_state=42, n_jobs=-1)
-    emb = tsne.fit_transform(features)
-
-    unique_types = sorted(set(forgery_types),
-                          key=lambda x: list(FORGERY_MAP.values()).index(x))
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    for ftype in unique_types:
-        mask = np.array(forgery_types) == ftype
-        color = FORGERY_COLORS.get(ftype, "#888888")
-        ax.scatter(emb[mask, 0], emb[mask, 1],
-                   c=color, label=ftype, alpha=0.7,
-                   s=18, linewidths=0)
-    ax.set_title("t-SNE: Forgery Type Classification", fontsize=13, fontweight='bold')
-    ax.legend(fontsize=7, loc='best', framealpha=0.8, ncol=2)
-    ax.set_xlabel("t-SNE 1"); ax.set_ylabel("t-SNE 2")
-    ax.set_xticks([]); ax.set_yticks([])
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=200, bbox_inches='tight')
-    plt.close()
-    print(f"  Saved → {save_path}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# ACTIVATION MAPS — visual branch, 3 scales
-# ═══════════════════════════════════════════════════════════════
-
-def get_sample(ds, label_target):
-    """Get a single sample with the given label."""
-    for s in ds.samples:
-        if s['label'] == label_target:
-            idx = ds.samples.index(s)
-            return ds[idx]
-    return None
-
-
-def compute_activation_map_syl(model, sample, device):
-    """
-    Compute Grad-CAM style activation map for syllable scale (CNN).
-    Returns list of (frame_tensor, activation_map) per syllable.
-    """
-    # Register forward hook on the last CNN conv layer
-    activations = {}
-    gradients   = {}
-
-    def fwd_hook(m, inp, out):
-        activations['syl'] = out.detach()
-
-    def bwd_hook(m, grad_in, grad_out):
-        gradients['syl'] = grad_out[0].detach()
-
-    # Hook on last conv before pooling in SpatialLipEncoder.cnn
-    last_conv = model.vis_syl.cnn[-2]   # AdaptiveAvgPool is last, conv before it
-    last_conv = model.vis_syl.cnn[6]    # Conv2d(64,128) — adjust if needed
-    fh = last_conv.register_forward_hook(fwd_hook)
-    bh = last_conv.register_full_backward_hook(bwd_hook)
-
-    bd = {
-        'syllable_lip_crops': sample['syllable_lip_crops'].unsqueeze(0).to(device),
-        'word_face_crops':    sample['word_face_crops'].unsqueeze(0).to(device),
-        'sentence_arcface':   sample['sentence_arcface'].unsqueeze(0).to(device),
-        'waveform':           sample['waveform'].unsqueeze(0).to(device),
-        'boundaries': {
-            'syllable': [sample['boundaries']['syllable']],
-            'word':     [sample['boundaries']['word']],
-            'sentence': [sample['boundaries']['sentence']]
-        }
+    return {
+        "acc":          acc,
+        "f1_macro":     f1m,
+        "f1_weighted":  f1w,
+        "precision":    prec,
+        "recall":       rec,
+        "confusion":    cm.tolist(),
+        "preds":        preds,
+        "labels":       labels_all,
+        "sync_scores":  ss_tensor,
+        "alphas":       al_tensor,
+        "gt_weights":   gw_tensor,
+        "video_ids":    video_ids_all,
+        "mean_alphas":  al_tensor.mean(0).tolist(),
     }
 
-    model.zero_grad()
-    out = model(bd)
-    # Backprop through predicted class
-    pred_class = out['logits'].argmax(-1).item()
-    out['logits'][0, pred_class].backward()
 
-    fh.remove(); bh.remove()
+def print_results(results, name="Test"):
+    """Pretty-print evaluation results."""
+    print(f"\n  {name}")
+    print(f"  {'─'*50}")
+    print(f"  Accuracy : {results['acc']:.4f}")
+    print(f"  F1 macro : {results['f1_macro']:.4f}")
+    print(f"  F1 weight: {results['f1_weighted']:.4f}")
+    print(f"  Precision: {results['precision']:.4f}")
+    print(f"  Recall   : {results['recall']:.4f}")
+    a = results['mean_alphas']
+    print(f"  α (syl/word/sent): [{a[0]:.3f}, {a[1]:.3f}, {a[2]:.3f}]")
 
-    if 'syl' in activations and 'syl' in gradients:
-        acts = activations['syl']   # (B*N*T, C, H, W)
-        grds = gradients['syl']
-        weights = grds.mean(dim=(2, 3), keepdim=True)
-        cam = F.relu((acts * weights).sum(dim=1))
-        cam = cam - cam.min(); cam = cam / (cam.max() + 1e-8)
-        return cam.cpu()
-    return None
+    if results.get('gt_weights') is not None:
+        gw = results['gt_weights']
+        la = torch.tensor(results['labels'])
+        print(f"\n  GT fusion weights per class:")
+        print(f"  {'':30s}  Syllable   Word   Sentence")
+        for c, nm in enumerate(CLASS_NAMES):
+            mask = (la == c)
+            if mask.any():
+                w = gw[mask].mean(0)
+                print(f"  {nm:30s}  {w[0]:.3f}      {w[1]:.3f}    {w[2]:.3f}")
 
-
-def plot_activation_maps(model, real_sample, fake_sample, device, save_dir):
-    """
-    Plot activation maps for real and fake samples across all 3 scales.
-    For syllable: Grad-CAM on CNN.
-    For word/sentence: attention weights from SpatialFaceEncoder.
-    """
-    print("  Generating activation maps...")
-    save_dir = Path(save_dir)
-
-    fig, axes = plt.subplots(2, 3, figsize=(12, 7))
-    fig.suptitle("Activation Maps: Visual Branch (Real vs Fake)",
-                 fontsize=13, fontweight='bold')
-
-    scale_labels = ["Syllable\n(Lip CNN)", "Word\n(CLIP face)", "Sentence\n(Identity)"]
-
-    for row_idx, (sample, sample_name) in enumerate([(real_sample, "Real"),
-                                                      (fake_sample, "Fake")]):
-        for col_idx, scale_name in enumerate(scale_labels):
-            ax = axes[row_idx, col_idx]
-
-            if col_idx == 0:
-                # Syllable: show a lip crop frame
-                syl_crops = sample['syllable_lip_crops']  # (N_syl, T, C, H, W)
-                # Take the first syllable's first frame
-                if syl_crops.shape[0] > 0 and syl_crops.shape[1] > 0:
-                    frame = syl_crops[0, 0]   # (C, H, W)
-                    frame = frame.permute(1, 2, 0).numpy()
-                    frame = (frame - frame.min()) / (frame.max() - frame.min() + 1e-8)
-                    ax.imshow(frame)
-                    ax.set_title(f"{sample_name}\n{scale_name}", fontsize=9)
-                else:
-                    ax.text(0.5, 0.5, "No lip frames", ha='center', va='center')
-
-            elif col_idx == 1:
-                # Word: show CLIP embedding heatmap (word × time)
-                word_embs = sample['word_face_crops']  # (N_word, T, 512)
-                # L2 norm per time step as attention proxy
-                attn = word_embs.norm(dim=-1)          # (N_word, T)
-                if attn.sum() > 0:
-                    attn = attn / (attn.max() + 1e-8)
-                im = ax.imshow(attn.numpy(), aspect='auto',
-                               cmap='hot', interpolation='nearest')
-                ax.set_xlabel("Frame", fontsize=7)
-                ax.set_ylabel("Word", fontsize=7)
-                ax.set_title(f"{sample_name}\n{scale_name}", fontsize=9)
-                plt.colorbar(im, ax=ax, fraction=0.046)
-
-            else:
-                # Sentence: show identity embedding similarity heatmap
-                sent = sample['sentence_arcface']   # (N_frames, 512)
-                # Cosine similarity matrix between frames
-                n = sent.shape[0]
-                if n > 1:
-                    normed = F.normalize(sent, dim=-1)
-                    sim = (normed @ normed.T).numpy()
-                    im = ax.imshow(sim, cmap='RdYlGn', vmin=-1, vmax=1)
-                    ax.set_title(f"{sample_name}\n{scale_name}", fontsize=9)
-                    ax.set_xlabel("Frame"); ax.set_ylabel("Frame")
-                    plt.colorbar(im, ax=ax, fraction=0.046)
-                else:
-                    ax.text(0.5, 0.5, "Single frame", ha='center', va='center')
-                    ax.set_title(f"{sample_name}\n{scale_name}", fontsize=9)
-
-            ax.set_xticks([]); ax.set_yticks([])
-
-    plt.tight_layout()
-    path = save_dir / "activation_maps.pdf"
-    plt.savefig(path, dpi=200, bbox_inches='tight')
-    plt.close()
-    print(f"  Saved → {path}")
-
-    # Also save PNG version
-    fig2, axes2 = plt.subplots(2, 3, figsize=(12, 7))
-    fig2.suptitle("Activation Maps: Visual Branch (Real vs Fake)",
-                  fontsize=13, fontweight='bold')
-    for row_idx, (sample, sample_name) in enumerate([(real_sample, "Real"),
-                                                      (fake_sample, "Fake")]):
-        for col_idx, scale_name in enumerate(scale_labels):
-            ax = axes2[row_idx, col_idx]
-            if col_idx == 0:
-                syl_crops = sample['syllable_lip_crops']
-                if syl_crops.shape[0] > 0 and syl_crops.shape[1] > 0:
-                    frame = syl_crops[0, 0].permute(1, 2, 0).numpy()
-                    frame = (frame - frame.min()) / (frame.max() - frame.min() + 1e-8)
-                    ax.imshow(frame)
-            elif col_idx == 1:
-                word_embs = sample['word_face_crops']
-                attn = word_embs.norm(dim=-1)
-                if attn.sum() > 0:
-                    attn = attn / (attn.max() + 1e-8)
-                ax.imshow(attn.numpy(), aspect='auto', cmap='hot', interpolation='nearest')
-            else:
-                sent = sample['sentence_arcface']
-                if sent.shape[0] > 1:
-                    normed = F.normalize(sent, dim=-1)
-                    sim = (normed @ normed.T).numpy()
-                    ax.imshow(sim, cmap='RdYlGn', vmin=-1, vmax=1)
-            ax.set_title(f"{sample_name}\n{scale_name}", fontsize=9)
-            ax.set_xticks([]); ax.set_yticks([])
-    plt.tight_layout()
-    plt.savefig(save_dir / "activation_maps.png", dpi=200, bbox_inches='tight')
-    plt.close()
+    cm = results['confusion']
+    print(f"\n  Confusion matrix:")
+    print(f"  {'':28s}  " + "  ".join(f"{cn[:8]:8s}" for cn in CLASS_NAMES))
+    for i, nm in enumerate(CLASS_NAMES):
+        row = "  ".join(f"{cm[i][j]:8d}" for j in range(4))
+        print(f"  {nm:28s}  {row}")
 
 
 # ═══════════════════════════════════════════════════════════════
-# SPECTROGRAM PLOTS — audio branch, 3 scales
+# ABLATION STUDY (Table 2)
 # ═══════════════════════════════════════════════════════════════
 
-def plot_spectrograms(model, real_sample, fake_sample, device, save_dir):
+def run_ablation(model, loader, device, save_dir):
     """
-    Plot spectrograms for real and fake samples across 3 audio scales.
-    Syllable = early frames, word = mid, sentence = full waveform.
+    Run 6 ablation variants on the same loader.
+    Returns dict: mode → metrics.
     """
-    import torchaudio.transforms as T
-    print("  Generating spectrogram plots...")
-    save_dir = Path(save_dir)
-
-    mel_transform = T.MelSpectrogram(
-        sample_rate=16000, n_mels=64, n_fft=512, hop_length=160)
-    db_transform = T.AmplitudeToDB()
-
-    fig, axes = plt.subplots(2, 3, figsize=(12, 6))
-    fig.suptitle("Spectrograms: Audio Branch at 3 Scales (Real vs Fake)",
-                 fontsize=13, fontweight='bold')
-
-    # Approximate scale boundaries from waveform
-    # Syllable: first 1.5s, Word: 1.5-4s, Sentence: full
-    SR = 16000
-    scale_slices = [
-        (0,              int(1.5 * SR),  "Syllable\n(0–1.5s)"),
-        (int(1.5 * SR),  int(4.0 * SR), "Word\n(1.5–4s)"),
-        (0,              None,           "Sentence\n(Full)"),
+    modes = [
+        ("full",          "Proposed Model (Full)"),
+        ("visual_only",   "Visual Branch only"),
+        ("audio_only",    "Audio Branch only"),
+        ("phrase_only",   "Phrase Level Sync only"),
+        ("word_only",     "Word Level Sync only"),
+        ("syllable_only", "Syllable Level Sync only"),
     ]
 
-    for row_idx, (sample, label) in enumerate([(real_sample, "Real"),
-                                                (fake_sample, "Fake")]):
-        wav = sample['waveform']   # (T_audio,)
+    results_table = {}
+    print(f"\n{'='*60}")
+    print("  ABLATION STUDY (Table 2)")
+    print(f"{'='*60}")
 
-        for col_idx, (start, end, scale_label) in enumerate(scale_slices):
-            ax = axes[row_idx, col_idx]
-            seg = wav[start:end] if end else wav[start:]
+    for mode, label in modes:
+        wrapped = AblationWrapper(model, mode=mode)
+        res = evaluate_model(wrapped, loader, device, desc=label)
+        results_table[label] = res
+        print(f"\n  [{label}]")
+        print(f"    Acc={res['acc']:.4f}  F1m={res['f1_macro']:.4f}  "
+              f"F1w={res['f1_weighted']:.4f}  "
+              f"P={res['precision']:.4f}  R={res['recall']:.4f}")
 
-            if seg.shape[0] < 512:
-                seg = F.pad(seg, (0, 512 - seg.shape[0]))
+    # Print as Table 2
+    print(f"\n  {'─'*70}")
+    print(f"  {'Model Variant':<40}  {'Acc':>6}  {'Prec':>6}  {'Rec':>6}  {'F1':>6}")
+    print(f"  {'─'*70}")
+    for label, res in results_table.items():
+        print(f"  {label:<40}  "
+              f"{res['acc']*100:6.2f}  "
+              f"{res['precision']*100:6.2f}  "
+              f"{res['recall']*100:6.2f}  "
+              f"{res['f1_macro']*100:6.2f}")
 
-            mel = mel_transform(seg.unsqueeze(0))   # (1, n_mels, T)
-            mel_db = db_transform(mel).squeeze(0).numpy()
+    if save_dir:
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        out = {k: {m: v for m, v in r.items()
+                   if m not in ('preds', 'labels', 'sync_scores',
+                                'alphas', 'gt_weights', 'video_ids',
+                                'confusion')}
+               for k, r in results_table.items()}
+        (Path(save_dir) / "ablation_table2.json").write_text(
+            json.dumps(out, indent=2))
+        print(f"\n  Saved → {save_dir}/ablation_table2.json")
 
-            im = ax.imshow(mel_db, aspect='auto', origin='lower',
-                           cmap='magma', interpolation='nearest')
-            ax.set_title(f"{label}\n{scale_label}", fontsize=9)
-            ax.set_xlabel("Time frames", fontsize=7)
-            ax.set_ylabel("Mel bins", fontsize=7)
-            ax.set_xticks([]); ax.set_yticks([])
+    return results_table
 
-            # Colorbar
-            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label("dB", fontsize=7)
 
-    plt.tight_layout()
-    path = save_dir / "spectrograms.pdf"
-    plt.savefig(path, dpi=200, bbox_inches='tight')
-    plt.close()
-    print(f"  Saved → {path}")
-    plt.savefig(save_dir / "spectrograms.png", dpi=200, bbox_inches='tight') \
-        if False else None
+# ═══════════════════════════════════════════════════════════════
+# THRESHOLD SWEEP (Table 3)
+# ═══════════════════════════════════════════════════════════════
 
-    # Save PNG too
-    fig2, axes2 = plt.subplots(2, 3, figsize=(12, 6))
-    fig2.suptitle("Spectrograms: Audio Branch at 3 Scales (Real vs Fake)",
-                  fontsize=13, fontweight='bold')
-    for row_idx, (sample, label) in enumerate([(real_sample, "Real"),
-                                                (fake_sample, "Fake")]):
-        wav = sample['waveform']
-        for col_idx, (start, end, scale_label) in enumerate(scale_slices):
-            ax = axes2[row_idx, col_idx]
-            seg = wav[start:end] if end else wav[start:]
-            if seg.shape[0] < 512:
-                seg = F.pad(seg, (0, 512 - seg.shape[0]))
-            mel = mel_transform(seg.unsqueeze(0))
-            mel_db = db_transform(mel).squeeze(0).numpy()
-            ax.imshow(mel_db, aspect='auto', origin='lower',
-                      cmap='magma', interpolation='nearest')
-            ax.set_title(f"{label}\n{scale_label}", fontsize=9)
-            ax.set_xticks([]); ax.set_yticks([])
-    plt.tight_layout()
-    plt.savefig(save_dir / "spectrograms.png", dpi=200, bbox_inches='tight')
-    plt.close()
-    print(f"  Saved → {save_dir}/spectrograms.png")
+def forgery_type_from_scores(ss, tau1, tau2, tau3):
+    """Map (s1,s2,s3) to forgery type string using Table 1."""
+    # ss: (N, 3) — [phrase, word, syllable]
+    s1 = (ss[:, 0] >= tau1).int()
+    s2 = (ss[:, 1] >= tau2).int()
+    s3 = (ss[:, 2] >= tau3).int()
+    forgery_types = []
+    for i in range(len(ss)):
+        key = (s1[i].item(), s2[i].item(), s3[i].item())
+        forgery_types.append(FORGERY_MAP[key])
+    return forgery_types
+
+
+def run_threshold_sweep(results_base, save_dir):
+    """
+    Sweep τ1, τ2, τ3 ∈ {0.25, 0.50, 0.75} and compute forgery type accuracy.
+    Since ground-truth forgery types aren't in the dataset, we instead report
+    the distribution of predicted forgery types and 4-class acc at each τ combo.
+    Table 3 reports 4-class accuracy — NOT forgery type accuracy.
+    """
+    thresholds = [0.25, 0.50, 0.75]
+    ss = results_base['sync_scores']   # (N, 3)
+    labels = results_base['labels']
+    preds  = results_base['preds']
+
+    print(f"\n{'='*60}")
+    print("  THRESHOLD SWEEP (Table 3)")
+    print(f"{'='*60}")
+    print(f"\n  τ1=phrase, τ2=word, τ3=syllable")
+    print(f"  Reporting 4-class accuracy and forgery type distribution\n")
+
+    sweep_results = {}
+    best_combo = None
+    best_acc   = 0.0
+
+    # Header
+    print(f"  {'τ1':>5} {'τ2':>5} {'τ3':>5}  {'Acc%':>6}  Dominant forgery type")
+    print(f"  {'─'*60}")
+
+    for tau1, tau2, tau3 in itertools.product(thresholds, repeat=3):
+        ftypes = forgery_type_from_scores(ss, tau1, tau2, tau3)
+        # Count forgery type distribution
+        dist = Counter(ftypes)
+        dominant = dist.most_common(1)[0][0]
+
+        # Acc is fixed (predictions don't change with threshold)
+        # Table 3 shows how thresholds affect the forgery IDENTIFICATION
+        # which is the implicit output — we report type distribution here
+        no_forgery_pct = dist.get("No Forgery", 0) / len(ftypes) * 100
+
+        key = (tau1, tau2, tau3)
+        sweep_results[str(key)] = {
+            "tau1": tau1, "tau2": tau2, "tau3": tau3,
+            "forgery_distribution": dict(dist),
+            "no_forgery_pct": no_forgery_pct,
+            "4class_acc": accuracy_score(labels, preds),
+        }
+
+        print(f"  {tau1:5.2f} {tau2:5.2f} {tau3:5.2f}  "
+              f"{accuracy_score(labels, preds)*100:6.2f}  {dominant}")
+
+        if no_forgery_pct > best_acc:
+            best_acc   = no_forgery_pct
+            best_combo = key
+
+    print(f"\n  Best τ for real video identification: "
+          f"τ1={best_combo[0]}, τ2={best_combo[1]}, τ3={best_combo[2]}")
+
+    # Print compact 3×3×3 table (like paper Table 3) for τ1=0.50 slice
+    print(f"\n  Compact table (τ1=0.50, Acc% for 4-class classification):")
+    print(f"  {'τ2\\τ3':>8}  {0.25:>8}  {0.50:>8}  {0.75:>8}")
+    acc_val = accuracy_score(labels, preds) * 100
+    for tau2 in thresholds:
+        row = f"  {tau2:>8}"
+        for tau3 in thresholds:
+            row += f"  {acc_val:8.2f}"
+        print(row)
+
+    if save_dir:
+        (Path(save_dir) / "threshold_sweep_table3.json").write_text(
+            json.dumps(sweep_results, indent=2))
+        print(f"\n  Saved → {save_dir}/threshold_sweep_table3.json")
+
+    return sweep_results
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -453,69 +385,72 @@ def plot_spectrograms(model, real_sample, fake_sample, device, save_dir):
 
 def main():
     p = argparse.ArgumentParser(
-        description="HAVDNet-W Visualization Script",
+        description="HAVDNet-W Test Script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__)
-    p.add_argument("--checkpoint",  required=True)
+
+    p.add_argument("--checkpoint",  required=True,
+                   help="Path to .pt checkpoint file (e.g. african_men/best.pt)")
     p.add_argument("--data_root",   required=True)
-    p.add_argument("--save_dir",    default="paper_figures")
-    p.add_argument("--ethnicity",   default=None)
-    p.add_argument("--gender",      default=None, choices=["men", "women"])
+    p.add_argument("--ethnicity",   default=None,
+                   help="Test on this ethnicity. None = full dataset.")
+    p.add_argument("--gender",      default=None, choices=["men", "women"],
+                   help="Test on this gender. None = both.")
+    p.add_argument("--save_dir",    default=None,
+                   help="Directory to save results JSON and reports.")
     p.add_argument("--batch_size",  type=int, default=16)
     p.add_argument("--num_workers", type=int, default=4)
     p.add_argument("--device",      default=None)
     p.add_argument("--seed",        type=int, default=42)
-    p.add_argument("--tau",         type=float, nargs=3, default=[0.5, 0.5, 0.5],
-                   metavar=("TAU1", "TAU2", "TAU3"),
-                   help="Thresholds for forgery type t-SNE colouring (default: 0.5 0.5 0.5)")
-    p.add_argument("--n_tsne",      type=int, default=2000,
-                   help="Max samples for t-SNE (default 2000 for speed)")
-    # Selective plotting
-    p.add_argument("--tsne_only",       action="store_true")
-    p.add_argument("--activation_only", action="store_true")
-    p.add_argument("--spectrogram_only",action="store_true")
-    # Sample selection
-    p.add_argument("--real_video_id",   default=None,
-                   help="video_id of real sample to use for activation/spectrogram.")
-    p.add_argument("--fake_video_id",   default=None,
-                   help="video_id of fake sample to use for activation/spectrogram.")
+
+    # Modes
+    p.add_argument("--ablation",        action="store_true",
+                   help="Run Table 2 ablation study (6 variants).")
+    p.add_argument("--threshold_sweep", action="store_true",
+                   help="Run Table 3 threshold sweep for forgery identification.")
+    p.add_argument("--full_report",     action="store_true",
+                   help="Print sklearn classification_report.")
+
     args = p.parse_args()
     set_seed(args.seed)
 
     dev = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    save_dir = Path(args.save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"\nHAVDNet-W Visualization")
+    print(f"\nHAVDNet-W Test Script")
     print(f"  Checkpoint : {args.checkpoint}")
-    print(f"  Save dir   : {save_dir}")
+    print(f"  Data root  : {args.data_root}")
+    print(f"  Ethnicity  : {args.ethnicity or 'all'}")
+    print(f"  Gender     : {args.gender or 'all'}")
     print(f"  Device     : {dev}")
 
-    # Determine which plots to generate
-    do_tsne   = not (args.activation_only or args.spectrogram_only)
-    do_activ  = not (args.tsne_only or args.spectrogram_only)
-    do_spec   = not (args.tsne_only or args.activation_only)
-    if args.tsne_only:        do_tsne  = True; do_activ = False; do_spec = False
-    if args.activation_only:  do_activ = True; do_tsne  = False; do_spec = False
-    if args.spectrogram_only: do_spec  = True; do_tsne  = False; do_activ = False
-
-    # ── Dataset ───────────────────────────────────────────────
+    # ── Load dataset ──────────────────────────────────────────
     print(f"\nLoading dataset...")
     ds = FakeAVCelebDataset(
         args.data_root,
         ethnicity=args.ethnicity,
         gender=args.gender,
-        split_name="viz")
-    print(f"  {len(ds)} samples")
+        split_name="test")
+    print(f"  Total samples: {len(ds)}")
+
+    lc = ds.get_label_counts()
+    for i, (nm, c) in enumerate(zip(CLASS_NAMES, lc)):
+        print(f"    [{i}] {nm:28s}: {c:5d}")
 
     if len(ds) == 0:
-        print("ERROR: No samples found."); return
+        print("ERROR: No samples found. Check --ethnicity / --gender values.")
+        return
 
+    # ── Precache ──────────────────────────────────────────────
+    print(f"\nChecking caches...")
     precache_wav(ds.samples, desc="Wav")
     precache_lip(ds.samples, desc="Lip")
 
-    # ── Models ────────────────────────────────────────────────
-    print(f"\nLoading models...")
+    loader = DataLoader(ds, args.batch_size, shuffle=False,
+                        num_workers=args.num_workers,
+                        collate_fn=collate_fn,
+                        pin_memory=(args.num_workers > 0))
+
+    # ── Load CLIP + Wav2Vec2 ──────────────────────────────────
+    print(f"\nLoading backbone models...")
     try:
         from load_models import load_clip, load_wav2vec2
         cm_model, _ = load_clip(dev)
@@ -527,115 +462,82 @@ def main():
         w2v_model   = Wav2Vec2Model.from_pretrained(
             "facebook/wav2vec2-large-xlsr-53").to(dev)
 
+    # Set CLIP for dataset sentence extraction
     import train_havdnet_w as train_mod
     train_mod._CLIP_MODEL = cm_model
-    precache_clip_all(ds.samples, cm_model, device=dev,
-                      batch_size=256, num_workers=4)
 
+    # CLIP cache check
+    precache_clip_all(ds.samples, cm_model, device=dev, batch_size=256, num_workers=4)
+
+    # ── Load HAVDNetW ─────────────────────────────────────────
     from havdnet_w import HAVDNetW
     model = HAVDNetW(cm_model, w2v_model).to(dev)
+
     ck = torch.load(args.checkpoint, map_location=dev, weights_only=False)
     model.load_state_dict(ck["state"])
-    model.eval()
-    print(f"  Loaded epoch {ck.get('epoch','?')}, F1={ck.get('f1','?')}")
+    train_epoch = ck.get("epoch", "?")
+    train_f1    = ck.get("f1", "?")
+    print(f"  Checkpoint: epoch={train_epoch}, train_best_F1={train_f1}")
 
-    # ── t-SNE ─────────────────────────────────────────────────
-    if do_tsne:
-        print(f"\n{'='*50}")
-        print("  t-SNE PLOTS")
-        print(f"{'='*50}")
+    tp = sum(x.numel() for x in model.parameters())
+    tr = sum(x.numel() for x in model.parameters() if x.requires_grad)
+    print(f"  Params: {tp:,} total  {tr:,} trainable")
 
-        loader = DataLoader(ds, args.batch_size, shuffle=False,
-                            num_workers=args.num_workers,
-                            collate_fn=collate_fn,
-                            pin_memory=(args.num_workers > 0))
+    # ── Standard evaluation ───────────────────────────────────
+    print(f"\n{'='*60}")
+    print(f"  STANDARD EVALUATION")
+    print(f"{'='*60}")
+    results = evaluate_model(model, loader, dev, desc="Evaluating")
+    print_results(results, name="Test Results")
 
-        features, labels, forgery_types, ss_tensor = extract_features(
-            model, loader, dev, tau=tuple(args.tau))
+    if args.full_report:
+        print(f"\n  Classification Report:")
+        rpt = classification_report(
+            results['labels'], results['preds'],
+            target_names=CLASS_NAMES, digits=4, zero_division=0)
+        print(rpt)
 
-        # Subsample for speed if needed
-        N = len(features)
-        if N > args.n_tsne:
-            idx = np.random.choice(N, args.n_tsne, replace=False)
-            features      = features[idx]
-            labels        = [labels[i] for i in idx]
-            forgery_types = [forgery_types[i] for i in idx]
-            print(f"  Subsampled to {args.n_tsne} samples for t-SNE speed")
+    # ── Save standard results ─────────────────────────────────
+    if args.save_dir:
+        sd = Path(args.save_dir)
+        sd.mkdir(parents=True, exist_ok=True)
+        out = {
+            "checkpoint":  args.checkpoint,
+            "ethnicity":   args.ethnicity or "all",
+            "gender":      args.gender or "all",
+            "n_samples":   len(ds),
+            "acc":         results['acc'],
+            "f1_macro":    results['f1_macro'],
+            "f1_weighted": results['f1_weighted'],
+            "precision":   results['precision'],
+            "recall":      results['recall'],
+            "confusion":   results['confusion'],
+            "mean_alphas": results['mean_alphas'],
+        }
+        (sd / "test_results.json").write_text(json.dumps(out, indent=2))
+        (sd / "test_report.txt").write_text(
+            classification_report(results['labels'], results['preds'],
+                                  target_names=CLASS_NAMES, digits=4,
+                                  zero_division=0))
+        print(f"\n  Saved → {args.save_dir}/")
 
-        plot_tsne_4class(features, labels,
-                         save_dir / "tsne_4class.pdf")
-        plot_tsne_4class(features, labels,
-                         save_dir / "tsne_4class.png")
-        plot_tsne_forgery(features, forgery_types,
-                          save_dir / "tsne_forgery_type.pdf")
-        plot_tsne_forgery(features, forgery_types,
-                          save_dir / "tsne_forgery_type.png")
+    # ── Ablation study ────────────────────────────────────────
+    if args.ablation:
+        abl_results = run_ablation(model, loader, dev, args.save_dir)
 
-        # Print forgery type distribution
-        dist = Counter(forgery_types)
-        print(f"\n  Forgery type distribution (τ={args.tau}):")
-        for ftype, count in sorted(dist.items(), key=lambda x: -x[1]):
-            print(f"    {ftype:25s}: {count:5d} ({count/len(forgery_types)*100:.1f}%)")
+    # ── Threshold sweep ───────────────────────────────────────
+    if args.threshold_sweep:
+        sweep_results = run_threshold_sweep(results, args.save_dir)
 
-    # ── Activation maps + Spectrograms ────────────────────────
-    if do_activ or do_spec:
-        print(f"\n{'='*50}")
-        print("  SAMPLE SELECTION")
-        print(f"{'='*50}")
-
-        # Find a real (label=0) and fake (label=3) sample
-        real_sample = None
-        fake_sample = None
-
-        for s in ds.samples:
-            if args.real_video_id and s['video_id'] == args.real_video_id:
-                idx = ds.samples.index(s)
-                real_sample = ds[idx]
-                break
-            if s['label'] == 0 and real_sample is None:
-                idx = ds.samples.index(s)
-                real_sample = ds[idx]
-            if s['label'] == 3 and fake_sample is None:
-                idx = ds.samples.index(s)
-                fake_sample = ds[idx]
-            if args.fake_video_id and s['video_id'] == args.fake_video_id:
-                idx = ds.samples.index(s)
-                fake_sample = ds[idx]
-            if real_sample and fake_sample:
-                break
-
-        if real_sample is None:
-            print("  WARNING: No RealVideo-RealAudio sample found. "
-                  "Using label=1 sample instead.")
-            for s in ds.samples:
-                if s['label'] == 1:
-                    idx = ds.samples.index(s)
-                    real_sample = ds[idx]; break
-
-        if real_sample is None or fake_sample is None:
-            print("  ERROR: Could not find suitable samples for visualization.")
-        else:
-            print(f"  Real sample: {real_sample.get('video_id', 'unknown') if hasattr(real_sample, 'get') else 'ok'}")
-            print(f"  Fake sample: {fake_sample.get('video_id', 'unknown') if hasattr(fake_sample, 'get') else 'ok'}")
-
-            if do_activ:
-                print(f"\n{'='*50}")
-                print("  ACTIVATION MAPS")
-                print(f"{'='*50}")
-                plot_activation_maps(model, real_sample, fake_sample, dev, save_dir)
-
-            if do_spec:
-                print(f"\n{'='*50}")
-                print("  SPECTROGRAM PLOTS")
-                print(f"{'='*50}")
-                plot_spectrograms(model, real_sample, fake_sample, dev, save_dir)
-
-    print(f"\n{'='*50}")
-    print(f"  All figures saved to: {save_dir}/")
-    print(f"  Files:")
-    for f in sorted(save_dir.iterdir()):
-        print(f"    {f.name}")
-    print(f"{'='*50}\n")
+    # ── Summary ───────────────────────────────────────────────
+    print(f"\n{'='*60}")
+    print(f"  SUMMARY")
+    print(f"  Acc    : {results['acc']*100:.2f}%")
+    print(f"  F1 (m) : {results['f1_macro']*100:.2f}%")
+    print(f"  F1 (w) : {results['f1_weighted']*100:.2f}%")
+    if args.save_dir:
+        print(f"  Output : {args.save_dir}/")
+    print(f"{'='*60}\n")
 
 
 if __name__ == "__main__":
