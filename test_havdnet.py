@@ -410,19 +410,135 @@ def main():
                    help="Run Table 3 threshold sweep for forgery identification.")
     p.add_argument("--full_report",     action="store_true",
                    help="Print sklearn classification_report.")
+    p.add_argument("--test_all",        action="store_true",
+                   help="Evaluate checkpoint against ALL ethnicity/gender combos "
+                        "and print a Table 4-style combined result. "
+                        "Ignores --ethnicity and --gender flags.")
 
     args = p.parse_args()
     set_seed(args.seed)
 
     dev = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+    # ── Load backbone + model once (shared across all test runs) ─
     print(f"\nHAVDNet-W Test Script")
     print(f"  Checkpoint : {args.checkpoint}")
+    print(f"  Device     : {dev}")
+
+    print(f"\nLoading backbone models...")
+    try:
+        from load_models import load_clip, load_wav2vec2
+        cm_model, _ = load_clip(dev)
+        w2v_model   = load_wav2vec2(dev)
+    except ImportError:
+        import clip
+        from transformers import Wav2Vec2Model
+        cm_model, _ = clip.load("ViT-B/32", device=dev)
+        w2v_model   = Wav2Vec2Model.from_pretrained(
+            "facebook/wav2vec2-large-xlsr-53").to(dev)
+
+    import train_havdnet_w as train_mod
+    train_mod._CLIP_MODEL = cm_model
+
+    from havdnet_w import HAVDNetW
+    model = HAVDNetW(cm_model, w2v_model).to(dev)
+    ck = torch.load(args.checkpoint, map_location=dev, weights_only=False)
+    model.load_state_dict(ck["state"])
+    model.eval()
+    train_epoch = ck.get("epoch", "?")
+    train_f1    = ck.get("f1", "?")
+    print(f"  Checkpoint: epoch={train_epoch}, train_best_F1={train_f1}")
+
+    # ── test_all: evaluate across all ethnicity/gender combos ────
+    if args.test_all:
+        ETHNICITIES = ["African", "Asian (East)", "Asian (South)", "Caucasian (American)", "Caucasian (European)"]
+        GENDERS     = ["men", "women"]
+
+        print(f"\n{'='*70}")
+        print(f"  TEST ALL — evaluating checkpoint against all demographics")
+        print(f"{'='*70}")
+
+        table_results = {}
+        all_preds  = []
+        all_labels = []
+
+        header = f"  {'Ethnicity':<28} {'Gender':<8}  {'N':>5}  {'Acc%':>6}  {'F1m%':>6}  {'F1w%':>6}"
+        print(f"\n{header}")
+        print(f"  {'─'*65}")
+
+        for eth in ETHNICITIES:
+            for gen in GENDERS:
+                ds = FakeAVCelebDataset(
+                    args.data_root, ethnicity=eth, gender=gen,
+                    split_name="test_all")
+
+                if len(ds) == 0:
+                    print(f"  {eth:<28} {gen:<8}  {'0':>5}  {'—':>6}  {'—':>6}  {'—':>6}")
+                    continue
+
+                precache_wav(ds.samples, desc=f"Wav {eth[:8]} {gen}")
+                precache_clip_all(ds.samples, cm_model, device=dev,
+                                  batch_size=256, num_workers=4)
+
+                loader = DataLoader(ds, args.batch_size, shuffle=False,
+                                    num_workers=args.num_workers,
+                                    collate_fn=collate_fn,
+                                    pin_memory=(args.num_workers > 0))
+
+                res = evaluate_model(model, loader, dev,
+                                     desc=f"{eth[:12]} {gen}")
+
+                table_results[f"{eth}|{gen}"] = res
+                all_preds.extend(res['preds'])
+                all_labels.extend(res['labels'])
+
+                print(f"  {eth:<28} {gen:<8}  "
+                      f"{len(ds):>5}  "
+                      f"{res['acc']*100:>6.2f}  "
+                      f"{res['f1_macro']*100:>6.2f}  "
+                      f"{res['f1_weighted']*100:>6.2f}")
+
+        # Combined metrics across all demographics
+        if all_preds:
+            print(f"  {'─'*65}")
+            combined_acc = accuracy_score(all_labels, all_preds)
+            combined_f1m = f1_score(all_labels, all_preds, average="macro",    zero_division=0)
+            combined_f1w = f1_score(all_labels, all_preds, average="weighted", zero_division=0)
+            print(f"  {'COMBINED':<28} {'all':<8}  "
+                  f"{len(all_preds):>5}  "
+                  f"{combined_acc*100:>6.2f}  "
+                  f"{combined_f1m*100:>6.2f}  "
+                  f"{combined_f1w*100:>6.2f}")
+
+            # Confusion matrix across all
+            cm_all = confusion_matrix(all_labels, all_preds)
+            print(f"\n  Combined confusion matrix:")
+            print(f"  {'':28s}  " + "  ".join(f"{cn[:8]:8s}" for cn in CLASS_NAMES))
+            for i, nm in enumerate(CLASS_NAMES):
+                row = "  ".join(f"{cm_all[i][j]:8d}" for j in range(4))
+                print(f"  {nm:28s}  {row}")
+
+        if args.save_dir:
+            sd = Path(args.save_dir); sd.mkdir(parents=True, exist_ok=True)
+            out = {
+                "checkpoint": args.checkpoint,
+                "combined": {
+                    "acc": combined_acc, "f1_macro": combined_f1m,
+                    "f1_weighted": combined_f1w, "n": len(all_preds)},
+                "by_demographic": {
+                    k: {m: v for m, v in r.items()
+                        if m not in ('preds','labels','sync_scores',
+                                     'alphas','gt_weights','video_ids')}
+                    for k, r in table_results.items()}}
+            (sd / "test_all_results.json").write_text(json.dumps(out, indent=2))
+            print(f"\n  Saved → {args.save_dir}/test_all_results.json")
+        return
+
+    # ── Single demographic evaluation ────────────────────────────
     print(f"  Data root  : {args.data_root}")
     print(f"  Ethnicity  : {args.ethnicity or 'all'}")
     print(f"  Gender     : {args.gender or 'all'}")
-    print(f"  Device     : {dev}")
 
-    # ── Load dataset ──────────────────────────────────────────
     print(f"\nLoading dataset...")
     ds = FakeAVCelebDataset(
         args.data_root,
@@ -439,45 +555,16 @@ def main():
         print("ERROR: No samples found. Check --ethnicity / --gender values.")
         return
 
-    # ── Precache ──────────────────────────────────────────────
     print(f"\nChecking caches...")
     precache_wav(ds.samples, desc="Wav")
     precache_lip(ds.samples, desc="Lip")
+    precache_clip_all(ds.samples, cm_model, device=dev,
+                      batch_size=256, num_workers=4)
 
     loader = DataLoader(ds, args.batch_size, shuffle=False,
                         num_workers=args.num_workers,
                         collate_fn=collate_fn,
                         pin_memory=(args.num_workers > 0))
-
-    # ── Load CLIP + Wav2Vec2 ──────────────────────────────────
-    print(f"\nLoading backbone models...")
-    try:
-        from load_models import load_clip, load_wav2vec2
-        cm_model, _ = load_clip(dev)
-        w2v_model   = load_wav2vec2(dev)
-    except ImportError:
-        import clip
-        from transformers import Wav2Vec2Model
-        cm_model, _ = clip.load("ViT-B/32", device=dev)
-        w2v_model   = Wav2Vec2Model.from_pretrained(
-            "facebook/wav2vec2-large-xlsr-53").to(dev)
-
-    # Set CLIP for dataset sentence extraction
-    import train_havdnet_w as train_mod
-    train_mod._CLIP_MODEL = cm_model
-
-    # CLIP cache check
-    precache_clip_all(ds.samples, cm_model, device=dev, batch_size=256, num_workers=4)
-
-    # ── Load HAVDNetW ─────────────────────────────────────────
-    from havdnet_w import HAVDNetW
-    model = HAVDNetW(cm_model, w2v_model).to(dev)
-
-    ck = torch.load(args.checkpoint, map_location=dev, weights_only=False)
-    model.load_state_dict(ck["state"])
-    train_epoch = ck.get("epoch", "?")
-    train_f1    = ck.get("f1", "?")
-    print(f"  Checkpoint: epoch={train_epoch}, train_best_F1={train_f1}")
 
     tp = sum(x.numel() for x in model.parameters())
     tr = sum(x.numel() for x in model.parameters() if x.requires_grad)
